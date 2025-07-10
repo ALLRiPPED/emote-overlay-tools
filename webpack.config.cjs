@@ -18,7 +18,7 @@ module.exports = {
     ],
   },
   optimization: {
-    minimize: false,
+    minimize: true,
   },
   performance: {
     hints: 'warning', 
