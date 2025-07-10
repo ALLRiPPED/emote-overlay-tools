@@ -1,142 +1,186 @@
 import Variables from '../config.js';
-const { globalVars, globalConst} = Variables;
 import helpers from '../helpers.js';
 import beerPourVideo from '../../assets/beerpourV2_VP9.webm';
 
+const { globalVars, globalConst } = Variables;
 
-/*
-Large Beer image fade in
-Drops sender and target (or me) into the beer.
-Floats/bounces around then all fade out
-*/
+// Constants
+const AVATAR_LIFESPAN = 15000;
+const BEER_FADE_IN_DELAY = 0;
+const BEER_FADE_OUT_DELAY = 13;
+const BEER_FADE_DURATION = 2;
+const BASE_INTERVAL = 250;
+const DROP_HEIGHT_RANGE = [500, 600];
+const AVATAR_OFFSET = 175;
+const AVATAR_SCALE = 0.8;
 
+/**
+ * Entry point for the animation.
+ */
 export function create(images) {
+    const imgCount = images.length;
+    const baseWidth = helpers.Randomizer(innerWidth / 2 - 50, innerWidth / 2 + 50);
+    const xPositions = [baseWidth, baseWidth - AVATAR_OFFSET];
+    const dropHeights = [
+        innerHeight - DROP_HEIGHT_RANGE[0],
+        innerHeight - DROP_HEIGHT_RANGE[1],
+    ];
 
-    let imgcount = images.length;
-    let interval = 250;
-    let basewidth = helpers.Randomizer(innerWidth/2-50, innerWidth/2+50, );
-    let xPos = [basewidth, basewidth-175];
-    let drop = [innerHeight-500, innerHeight-600];
-
-    for (let j = 0; j < images.length; j++) {
-        // split the count amounst the images
-        let imagenum = j % imgcount;
+    images.forEach((image, index) => {
+        const imageIndex = index % imgCount;
         setTimeout(() => {
-            createAvatarDivs(images[imagenum], xPos[imagenum], drop[imagenum]);
-        }, j * interval);
-    }
+            createAvatar(image, xPositions[imageIndex], dropHeights[imageIndex]);
+        }, index * BASE_INTERVAL);
+    });
 
-    var BeerDiv = document.createElement('div');
-    BeerDiv.id = globalVars.divnumber;
-    globalVars.divnumber++;
-    //BeerDiv.style.background = 'url(' + 'img/beer.jpg' + ')';
-    BeerDiv.style.backgroundSize = '100% 100%';
-    gsap.set(BeerDiv, {className: 'beer-glass', x: innerWidth/2 , y: 0, z:0, opacity: 0, transformOrigin:"center", xPercent: -50});
-    
+    const beerDiv = createBeerDiv();
+    globalConst.warp.appendChild(beerDiv);
 
-    globalConst.warp.appendChild(BeerDiv);
+    animateBeerGlass(beerDiv);
+    appendBeerVideo(beerDiv);
 
-    beer_animation(BeerDiv);
+    setTimeout(() => {
+        helpers.removeelement(beerDiv.id);
+    }, AVATAR_LIFESPAN);
+}
 
+/**
+ * Creates and animates an avatar image.
+ */
+function createAvatar(imageUrl, x, drop) {
+    const avatar = document.createElement('div');
+    avatar.id = globalVars.divnumber++;
+    avatar.style.background = `url(${imageUrl})`;
+    avatar.style.backgroundSize = '100% 100%';
 
+    gsap.set(avatar, {
+        className: 'beer-avatar',
+        x,
+        y: -250,
+        z: 10,
+        scale: AVATAR_SCALE,
+        transformOrigin: '50% 50%',
+    });
+
+    globalConst.warp.appendChild(avatar);
+    animateDrop(avatar, drop);
+
+    setTimeout(() => {
+        helpers.removeelement(avatar.id);
+    }, AVATAR_LIFESPAN);
+}
+
+/**
+ * Creates the main beer glass container.
+ */
+function createBeerDiv() {
+    const beerDiv = document.createElement('div');
+    beerDiv.id = globalVars.divnumber++;
+    beerDiv.style.backgroundSize = '100% 100%';
+
+    gsap.set(beerDiv, {
+        className: 'beer-glass',
+        x: innerWidth / 2,
+        y: 0,
+        z: 0,
+        opacity: 0,
+        transformOrigin: 'center',
+        xPercent: -50,
+    });
+
+    return beerDiv;
+}
+
+/**
+ * Appends and configures the beer video inside the beer container.
+ */
+function appendBeerVideo(container) {
     const video = document.createElement('video');
     video.src = beerPourVideo;
     video.autoplay = true;
-    video.muted = true; // Autoplay requires muted for some browsers
+    video.muted = true;
     video.loop = true;
     video.controls = false;
-
     video.style.width = '100%';
     video.style.height = '100%';
 
-    BeerDiv.appendChild(video);
-
-    // Run animation
-    
-    setTimeout(() => {
-        helpers.removeelement(BeerDiv.id);
-    }, 15000);
-
+    container.appendChild(video);
 }
 
-function createAvatarDivs(image, xPos, drop){
-
-    var Div = document.createElement('div');
-    Div.id = globalVars.divnumber;
-    globalVars.divnumber++;
-    Div.style.background = 'url(' + image + ')';
-    Div.style.backgroundSize = '100% 100%';
-
-    gsap.set(Div, {className: 'beer-avatar', x: xPos, y: -250, z:10, scale: 0.8, transformOrigin:"50% 50%" });
-
-    globalConst.warp.appendChild(Div);
-
-    drop_animation(Div, drop);
-
-    setTimeout(() => {
-        helpers.removeelement(Div.id);
-    }, 15000);
-}
-
-function drop_animation(element, drop) {
+/**
+ * Animates the beer glass (fade in/out).
+ */
+function animateBeerGlass(element) {
+    gsap.to(element, {
+        opacity: 1,
+        duration: BEER_FADE_DURATION,
+        delay: BEER_FADE_IN_DELAY,
+    });
 
     gsap.to(element, {
-        rotation: helpers.Randomizer(-15,15),
+        opacity: 0,
+        duration: BEER_FADE_DURATION,
+        delay: BEER_FADE_OUT_DELAY,
+    });
+}
+
+/**
+ * Controls the bounce animation of a falling avatar.
+ */
+function animateDrop(element, dropTargetY) {
+    const bounceSequence = [
+        { offset: -175, duration: 1.45 },
+        { offset: -125, duration: 1.55 },
+        { offset: -100, duration: 1.65 },
+    ];
+
+    gsap.to(element, {
+        rotation: helpers.Randomizer(-15, 15),
         delay: 1,
         duration: 4,
-        ease: "sine.inOut",
+        ease: 'sine.inOut',
     });
 
     gsap.to(element, {
-        duration: 1.5, // Duration of the fall
+        y: dropTargetY,
         delay: 3,
-        y: drop, // Fall to 75% of the container's height
-        
-        ease: "power1.out", // Easing function (you can choose a different one)
-        onComplete: () => {
-          // Callback when the drop reaches the bottom
-          gsap.to(element, {
-            duration: 1.45, // Duration of the bobble
-            y: drop-175, // Bobble up to 60% of the container's height
-            yoyo: true, // Yoyo effect for bouncing
-            repeat: 1, // Repeat indefinitely
-            ease: "sine.inOut", // Easing function for the bobble
-            onComplete: () => {
-                gsap.to(element, {
-                    duration: 1.55, // Duration of the bobble
-                    y: drop-125, // Bobble up to 60% of the container's height
-                    yoyo: true, // Yoyo effect for bouncing
-                    repeat: 1, // Repeat indefinitely
-                    ease: "sine.inOut", // Easing function for the bobble
-                    onComplete: () => {
-                        fadeout(element);
-                        gsap.to(element, {
-                            duration: 1.65, // Duration of the bobble
-                            y: drop-100, // Bobble up to 60% of the container's height
-                            yoyo: true, // Yoyo effect for bouncing
-                            repeat: 1, // Repeat indefinitely
-                            ease: "sine.inOut", // Easing function for the bobble
-                        });
-                    }
-                });
-            }
-          });
-        }
-      });
-}
-
-function fadeout(element){
-    gsap.to(element, {
-        duration: 4, // Duration of the bobble
-        opacity: 0,
-        yoyo: false, // Yoyo effect for bouncing
-        repeat: 0, // Repeat indefinitely
-        ease: "sine.inOut", // Easing function for the bobble
+        duration: 1.5,
+        ease: 'power1.out',
+        onComplete: () => bounceAvatar(element, dropTargetY, bounceSequence, 0),
     });
 }
 
-function beer_animation(element){
+/**
+ * Recursively animates the bounce sequence, then fades out.
+ */
+function bounceAvatar(element, baseY, sequence, index) {
+    if (index >= sequence.length) return;
 
-    gsap.to(element, {opacity: 1, duration: 2, delay: 0})
-    gsap.to(element, {opacity: 0, duration: 2, delay: 13})
+    const { offset, duration } = sequence[index];
+
+    gsap.to(element, {
+        y: baseY + offset,
+        duration,
+        yoyo: true,
+        repeat: 1,
+        ease: 'sine.inOut',
+        onComplete: () => {
+            if (index === sequence.length - 1) {
+                fadeOut(element);
+            } else {
+                bounceAvatar(element, baseY, sequence, index + 1);
+            }
+        },
+    });
+}
+
+/**
+ * Fades out the provided element.
+ */
+function fadeOut(element) {
+    gsap.to(element, {
+        duration: 4,
+        opacity: 0,
+        ease: 'sine.inOut',
+    });
 }
