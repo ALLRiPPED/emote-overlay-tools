@@ -1,6 +1,7 @@
 import Variables from '../config.js';
 const { globalVars, globalConst} = Variables;
 import helpers from '../helpers.js';
+import beerPourVideo from '../../assets/beerpourV2_VP9.webm';
 
 
 /*
@@ -39,7 +40,7 @@ export function create(images) {
 
 
     const video = document.createElement('video');
-    video.src = 'img/beerpourV2_VP9.webm'; // Replace with your video URL
+    video.src = beerPourVideo;
     video.autoplay = true;
     video.muted = true; // Autoplay requires muted for some browsers
     video.loop = true;
