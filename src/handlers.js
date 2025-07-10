@@ -1,392 +1,218 @@
 import Variables from './config.js';
-const { globalVars, globalConst} = Variables;
-
 import helpers from './helpers.js';
 import animations from './animations.js';
-//import posthog from 'posthog-js';
 
-function chatMessageHandler(wsdata) {
-    var message = wsdata.data.message.message
-    var lowermessage = wsdata.data.message.message.toLowerCase();
-    var username = wsdata.data.message.username;
-    var userId = wsdata.data.message.userId;
+const { globalVars, globalConst } = Variables;
 
-    //Lurk
-    if (lowermessage.includes("!lurk")) {
-      if(!globalConst.lurk && !globalConst.all){
-        console.log("Lurk Not Enabled");
-        return
-      }
-      lurkCommand(username);
-    }
+// -- Command Handlers --
 
-    //Shoutout
-    if (lowermessage.includes("!so")) {
-      if(!globalConst.welcome && !globalConst.all){
-        console.log("Shoutout Not Enabled");
-        return
-      }
-      shoutoutCommand(lowermessage);
-    }
+export async function chatMessageHandler(wsdata) {
+  const { message, username, userId, emotes } = wsdata.data.message;
+  const lowerMessage = message.toLowerCase();
 
-    //Choon
-    if (lowermessage.includes("!choon") || lowermessage.includes("!tune")) {
-      if(!globalConst.all && !globalConst.choon){
-        console.log("Choon Command Not Enabled");
-        return
-      }
-      choonCommand(username);
-    }
-
-    //Cheers
-    if (lowermessage.includes("!cheers")) {
-      if(!globalConst.all && !globalConst.cheers){
-        console.log("Cheers Command Not Enabled");
-        return
-      }
-
-      let targetuser;
-
-      if(lowermessage.includes("@")){
-        let split = lowermessage.split('@');
-        targetuser = split[1];
-
-      }
-      cheersCommand(username, targetuser);
-    }
-
-    //Join Hype Train Command for Testing
-    if (lowermessage.includes("!jointrain")) {
-      if(!debug){
-        console.log("Cheers Command Not Enabled");
-        return
-      }
-      animations.hypetrain.hypetrainprogression(userId);
-    }
-
-    //TestCommand: 
-    //emoteVolcano(['https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_2758558107d148c9b1e73c56cb2d9e06/default/dark/2.0', 'https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_dcaf0a56231d4443a91546b869b96a25/default/dark/2.0'], 100, 20);
-
-    if (typeof wsdata.data.message.emotes != "undefined") {
-      emoteMessageHandler(wsdata);
-    }
+  if (lowerMessage.includes('!lurk') && (globalConst.lurk || globalConst.all)) {
+    return lurkCommand(username);
   }
 
-function actionsHandler(wsdata){
-  let data = wsdata.data;
-  let action = wsdata.data.name;
+  if (lowerMessage.includes('!so') && (globalConst.welcome || globalConst.all)) {
+    return shoutoutCommand(lowerMessage);
+  }
 
+  if ((lowerMessage.includes('!choon') || lowerMessage.includes('!tune')) &&
+    (globalConst.choon || globalConst.all)) {
+    return choonCommand(username);
+  }
+
+  if (lowerMessage.includes('!cheers') && (globalConst.cheers || globalConst.all)) {
+    const targetUser = lowerMessage.includes('@') ? lowerMessage.split('@')[1] : null;
+    return cheersCommand(username, targetUser);
+  }
+
+  if (lowerMessage.includes('!jointrain') && globalConst.debug) {
+    return animations.hypetrain.hypetrainprogression(userId);
+  }
+
+  if (emotes?.length) {
+    return emoteMessageHandler(wsdata);
+  }
 }
 
-function emoteMessageHandler(wsdata){
-  var message = wsdata.data.message.message
-  var lowermessage = wsdata.data.message.message.toLowerCase();
-  var userrole = wsdata.data.message.role;
-  var sub = wsdata.data.message.subscriber;
-  var emotecount = wsdata.data.message.emotes.length;
+export function actionsHandler(wsdata) {
+  // Placeholder: define your action handling logic here
+  const { name, data } = wsdata.data;
+  console.log(`Received action: ${name}`, data);
+}
 
-  var images = [];
-  var i;
-  for (i = 0; i < emotecount; i++) {
-    images[i] = wsdata.data.message.emotes[i].imageUrl;
+// -- Emote Animation Handler --
+
+export async function emoteMessageHandler(wsdata) {
+  const { message, role, subscriber, emotes } = wsdata.data.message;
+  const lowerMessage = message.toLowerCase();
+  const images = emotes.map(e => e.imageUrl);
+  let eCount = helpers.getCommandValue(lowerMessage, "count");
+  let eInterval = helpers.getCommandValue(lowerMessage, "interval");
+
+  if (eCount > globalConst.maxemotes) {
+    eCount = globalConst.maxemotes;
   }
 
-
-  var eInterval = helpers.getCommandValue(lowermessage, "interval");
-  var eCount = helpers.getCommandValue(lowermessage, "count");
-
-  if(eCount != null) {
-  if(eCount > globalConst.maxemotes){
-      eCount = globalConst.maxemotes;           
-  }
-  }
-
-  //TextCommand, FunctionName, DefaultEmotes, DefaultInterval
-  let animationMap = [
-  ['!er rain','emoteRain', 50, 50, 'rain'],
-  ['!er rise', 'emoteRise', 100, 50, 'rise'],
-  ['!er explode', 'emoteExplode', 100, 20, 'explode'],
-  ['!er volcano', 'emoteVolcano', 100, 20, 'volcano'],
-  ['!er firework', 'emoteFirework', 100, 20, 'firework'],
-  ['!er rightwave', 'emoteRightWave', 100, 20, 'waves'],
-  ['!er leftwave', 'emoteLeftWave', 100, 20, 'waves'],
-  ['!er carousel', 'emoteCarousel', 100, 150, 'carousel'],
-  ['!er spiral', 'emoteSpiral', 100, 170, 'spiral'],
-  ['!er comets', 'emoteComets', 100, 50, 'comets'],
-  ['!er dvd', 'emoteDVD', 8, 50, 'dvd'],
-  ['!er text', 'emoteText', 'HYPE', 25, 'text'],
-  ['!er cyclone', 'emoteCyclone', 100, 30, 'cyclone'],
-  ['!er tetris', 'emoteTetris', 50, 40, 'tetris']
-  //['!er cube', 'emoteCube', 8, 50],
+  const animationMap = [
+    ['!er rain', 'emoteRain', 50, 50, 'rain'],
+    ['!er rise', 'emoteRise', 100, 50, 'rise'],
+    ['!er explode', 'emoteExplode', 100, 20, 'explode'],
+    ['!er volcano', 'emoteVolcano', 100, 20, 'volcano'],
+    ['!er firework', 'emoteFirework', 100, 20, 'firework'],
+    ['!er rightwave', 'emoteRightWave', 100, 20, 'waves'],
+    ['!er leftwave', 'emoteLeftWave', 100, 20, 'waves'],
+    ['!er carousel', 'emoteCarousel', 100, 150, 'carousel'],
+    ['!er spiral', 'emoteSpiral', 100, 170, 'spiral'],
+    ['!er comets', 'emoteComets', 100, 50, 'comets'],
+    ['!er dvd', 'emoteDVD', 8, 50, 'dvd'],
+    ['!er text', 'emoteText', 'HYPE', 25, 'text'],
+    ['!er cyclone', 'emoteCyclone', 100, 30, 'cyclone'],
+    ['!er tetris', 'emoteTetris', 50, 40, 'tetris']
   ];
 
+  const match = animationMap.find(([cmd]) => lowerMessage.startsWith(cmd));
 
-
-  //Specific Animation Commands
-  if (globalConst.emoterain){
-    if (globalConst.subonly & !sub) {
-      console.log("Sub Only Mode enabled, Messsage was not from a Sub");
-      return
-    }
+  if (globalConst.emoterain && globalConst.subonly && !subscriber) {
+    console.log("Sub Only Mode: Not a subscriber.");
+    return;
   }
 
+  if (match) {
+    const [_, funcName, defaultCount, defaultInterval, module] = match;
+    eCount ||= defaultCount;
+    eInterval ||= defaultInterval;
 
-  animationMap.forEach(function (animation) {
-    if (!lowermessage.startsWith(animation[0])) {
-      return
+    // emoteText special case
+    if (funcName === 'emoteText') {
+      const [, extractedText] = /text (\S+)/gm.exec(message) || [];
+      if (!extractedText || images.length === 0) {
+        return botChat("Invalid Syntax. Use '!er text <word> <emotes>'");
+      }
+      eCount = extractedText;
     }
 
-    if(!eCount){eCount = animation[2];}
-    if(!eInterval){eInterval = animation[3]}
-
-    //EmoteText Specific Handling
-    if(animation[1] == "emoteText") {
-        let regexp = /text (\S*)/gm;  
-        let matches = regexp.exec(wsdata.data.message.message);
-        eCount = matches[1];
-
-        if(wsdata.data.message.emotes.length < 1 && Botchat){
-        let message = "Invalid Syntax, please try using '!er text <WordToWrite> <Emotes to use>'"
-        botChat(message);
-        }
-
-        //Ensure that text was supplied by checking if the text string matches the first emote
-        let emotenames = "";
-        for(const emote of wsdata.data.message.emotes) {
-        emotenames = emotenames + emote["name"] + " ";
-        }
-        //Set Default Text if no text supplied
-        if(emotenames.includes(eCount)){
-        eCount = "Hype";
-        }                
-    }
-
-    
-    console.log("running " + animation[1] + " with " + eCount + " emote(s)" + " and interval " + eInterval + ". module: " + animation[4]);
-    if (animations.hasOwnProperty(animation[4]) && animations[animation[4]].hasOwnProperty(animation[1]) && typeof animations[animation[4]][animation[1]] === 'function'){
-      animations[animation[4]][animation[1]](images, eCount, eInterval);
+    if (animations[module]?.[funcName]) {
+      console.log(`Running ${funcName} with ${eCount} emotes at ${eInterval}ms`);
+      animations[module][funcName](images, eCount, eInterval);
     } else {
-      console.log("Animation Function Mapping Failed");
+      console.warn("Animation mapping failed.");
     }
-
-      
-  });
-  
-
-
-  //Kappagen Animations
-  if (globalConst.kappagen){
-    if (globalConst.subonly & !sub) {
-      console.log("Sub Only Mode enabled, Messsage was not from a Sub");
-      return
+    return;
   }
 
-  if(lowermessage.includes("!k ")) {
-      let rAnimation = Math.round(helpers.Randomizer(0,animationMap.length - 1 ));
-      if(!eCount){eCount = animationMap[rAnimation][2];}
-      if(!eInterval){eInterval = animationMap[rAnimation][3];}
+  // Kappagen
+  if (globalConst.kappagen && globalConst.subonly && !subscriber) return;
+  if (lowerMessage.includes('!k ')) {
+    const random = Math.floor(Math.random() * animationMap.length);
+    const [, func, count, interval, mod] = animationMap[random];
+    eCount ||= count;
+    eInterval ||= interval;
 
-      let aniModule = animationMap[rAnimation][4];
-      let aniFunction = animationMap[rAnimation][1];
-      
-      console.log("Rolled: " + rAnimation + ". Running: " + aniModule + " : " + aniFunction + " with " + eCount + " emote(s)" + " and interval " + eInterval);
-      if (animations.hasOwnProperty(aniModule) && animations[aniModule].hasOwnProperty(aniFunction) && typeof animations[aniModule][aniFunction] === 'function'){
-        animations[aniModule][aniFunction](images, eCount, eInterval);
-      } else {
-        console.log("Animation Function Mapping Failed");
-      }
+    if (animations[mod]?.[func]) {
+      console.log(`Kappagen -> ${mod}.${func} with ${eCount} emotes`);
+      animations[mod][func](images, eCount, eInterval);
+    }
+    return;
   }
 
+  // Default random animation
+  const random = Math.floor(Math.random() * 3);
+  const defaultEmoteAnim = [animations.rain.emoteRain, animations.bounce.emoteBounce, animations.fade.create][random];
+  defaultEmoteAnim(images, emotes.length);
 }
 
-  //Normal emotes animations
-  let randomAnimation = Math.round(helpers.Randomizer(1,3));
-    switch(randomAnimation) {
-    case 1:
-        animations.rain.emoteRain(images, emotecount);
-        break;
+// -- Utility Commands --
 
-    case 2:  
-        animations.bounce.emoteBounce(images, emotecount);
-        break;
-    case 3:
-        animations.fade.create(images, emotecount);
-  };
+export async function cheersCommand(username, targetUser) {
+  try {
+    const avatars = await Promise.all([
+      helpers.getTwitchAvatar(username),
+      helpers.getTwitchAvatar(targetUser)
+    ]);
+
+    if (avatars.length < 2) throw new Error("Missing user avatars for Cheers");
+
+    const runCheers = helpers.executeWithInterval(() => {
+      animations.cheers.create(avatars);
+    }, 15000);
+
+    runCheers();
+  } catch (error) {
+    console.error("Cheers failed:", error);
+  }
 }
 
-function firstWordsHander(wsdata){
-    if(!globalConst.welcome && !globalConst.all){
-    console.log("First Words Not Enabled");
-    return
-    }
-    
-    var username = wsdata.data.message.username;
-    var xhttp = new XMLHttpRequest();
-    console.log("created xmlhttp object");
-    xhttp.onreadystatechange = function () {
-    if (this.readyState == 4 && this.status == 200) {
-        // get display image for the user
-        console.log("got a user image response back");
-        
-        let avatar = [xhttp.responseText];
-        //Trigger Animation
-        animations.rain.emoteRain(avatar, globalConst.defaultemotes, 50);
-
-    }
-    };
-    console.log(username);
-    xhttp.open("GET", "https://decapi.me/twitch/avatar/" + username, true);
-    xhttp.send();          
+export async function choonCommand(username) {
+  try {
+    const avatar = await fetchAvatar(username);
+    animations.choon.createAvatarChoon([avatar]);
+  } catch (error) {
+    console.error("Choon fetch failed:", error);
+  }
 }
 
-
-async function cheersCommand(username, targetuser){
-
-  console.log("Cheers: " + username + targetuser);
-  let images = [];
-
-    try {
-        images.push(await helpers.getTwitchAvatar(username));
-    } catch (error) {
-        console.error(error);
-        throw error;
-    }
-  
-    if(targetuser){
-      try {
-          images.push(await helpers.getTwitchAvatar(targetuser));
-      } catch (error) {
-          console.error(error);
-          throw error;
-      }
-        //images.push(helpers.getTwitchAvatar(targetuser));
-    } else {
-      images.push("https://static-cdn.jtvnw.net/jtv_user_pictures/8e051a26-051f-4abe-bcfa-e13a5d13fad0-profile_image-300x300.png");
-    }
-
-    const delayedFunction = helpers.executeWithInterval(function () {
-      animations.cheers.create(images);
-    }, 15000); 
-
-    delayedFunction();
-
-    //posthog.capture('Commands', { property: 'Cheers' })
-
+export async function lurkCommand(username) {
+  try {
+    const avatar = await fetchAvatar(username);
+    animations.lurking.create(avatar, 3);
+  } catch (error) {
+    console.error("Lurk fetch failed:", error);
+  }
 }
 
-function choonCommand(username){
-var xhttp = new XMLHttpRequest();
-xhttp.onreadystatechange = function () {
-    if (this.readyState == 4 && this.status == 200) {
-    // get display image for the user
-    console.log("got a user image response back: " + xhttp.responseText);
-    // console.log(xhttp.responseText);
-    
-    let avatar = [xhttp.responseText];
-    
-    //Disabled While Live
-    animations.choon.createAvatarChoon(avatar);
+export async function shoutoutCommand(lowerMessage) {
+  const match = lowerMessage.match(/@(.*)/);
+  const username = match?.[1];
 
-    }
-};
+  if (!username) return;
 
-xhttp.open("GET", "https://decapi.me/twitch/avatar/" + username, true);
-xhttp.send();
+  try {
+    const avatar = await fetchAvatar(username);
+    animations.rain.emoteRain([avatar], globalConst.defaultemotes, 50);
+  } catch (error) {
+    console.error("Shoutout failed:", error);
+  }
 }
 
-// function incomingRaid(data){
+export async function firstWordsHandler(wsdata) {
+  if (!globalConst.welcome && !globalConst.all) return;
 
-
-//     //RAIDER NAMES DEPRECATED. Switching to just passing the raider details and count  
-//     var raiders = data.arguments.raiderNames.split(',');
-  
-//     console.log(raiders);
-  
-//     raiders.forEach(async (raider) => {
-//       var username = raider;
-//       var xhttp = new XMLHttpRequest();
-//       console.log("created xmlhttp object");
-//       xhttp.onreadystatechange = function () {
-//         if (this.readyState == 4 && this.status == 200) {
-//           // get display image for the user
-//           console.log("got a user image response back");
-          
-//           avatar = [xhttp.responseText];
-//           //Trigger Animation
-//           animations.createRaider(avatar);
-  
-//         }
-//       };
-//       console.log(username);
-//       xhttp.open("GET", "https://decapi.me/twitch/avatar/" + username, true);
-//       xhttp.send();  
-  
-//     });
-// }
-
-function lurkCommand(username){
-    var xhttp = new XMLHttpRequest();
-    console.log("created xmlhttp object");
-    xhttp.onreadystatechange = function () {
-      if (this.readyState == 4 && this.status == 200) {
-        // get display image for the user
-        console.log("got the users image back");         
-        //Trigger Animation
-        animations.lurking.create(xhttp.responseText, 3);
-      }
-    };
-    //console.log(username);
-    xhttp.open("GET", "https://decapi.me/twitch/avatar/" + username, true);
-    xhttp.send();   
-}
-  
-function shoutoutCommand(lowermessage){
-            
-    // ALLOW - And other word symbols
-    let regexp = /\@(.*)/;
-    let matches = lowermessage.match(regexp);
-    let sousername = matches[1];
-    console.log(sousername);
-    let xhttp = new XMLHttpRequest();
-    console.log("created xmlhttp object");
-    xhttp.onreadystatechange = function () {
-      if (this.readyState == 4 && this.status == 200) {
-        // get display image for the user
-        console.log("got a user image response back");
-        
-        
-        let avatar = [xhttp.responseText];
-        //console.log(avatar);
-        animations.rain.emoteRain(avatar, globalConst.defaultemotes, 50);
-
-      }
-    };
-    xhttp.open("GET", "https://decapi.me/twitch/avatar/" + sousername, true);
-    xhttp.send();           
+  const { username } = wsdata.data.message;
+  try {
+    const avatar = await fetchAvatar(username);
+    animations.rain.emoteRain([avatar], globalConst.defaultemotes, 50);
+  } catch (error) {
+    console.error("First words avatar fetch failed:", error);
+  }
 }
 
-function botChat(message){
-  ws.send(JSON.stringify(
-    {
-      "request": "DoAction",
-      "action": {
-        "name": "ERTwitchBotChat"
-      },
-      "args": {
-        "message": message,
-      },
-      "id": "123"
-    }
-  ));
+// -- Helpers --
+
+async function fetchAvatar(username) {
+  const response = await fetch(`https://decapi.me/twitch/avatar/${username}`);
+  if (!response.ok) throw new Error("Failed to fetch avatar");
+  return await response.text();
+}
+
+function botChat(message) {
+  ws.send(JSON.stringify({
+    request: "DoAction",
+    action: { name: "ERTwitchBotChat" },
+    args: { message },
+    id: "123"
+  }));
 }
 
 export default {
   chatMessageHandler,
   actionsHandler,
   emoteMessageHandler,
-  firstWordsHander,
+  firstWordsHandler,
   cheersCommand,
   choonCommand,
   lurkCommand,
   shoutoutCommand
-}
+};
