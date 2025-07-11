@@ -1,3 +1,4 @@
+name: improved-emote-overlay-tools
 services:
   app:
     build: .
